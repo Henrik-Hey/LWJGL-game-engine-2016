@@ -1,0 +1,23 @@
+#version 150
+
+in vec2 textureCoords;
+
+out vec4 out_Colour;
+
+uniform sampler2D colourTexture;
+uniform sampler2D blurTexture;
+uniform sampler2D depthTexture;
+
+void main(void){
+
+    vec4 sceneColour = texture(colourTexture, textureCoords);
+    vec4 colour = texture(blurTexture, textureCoords);
+    vec4 depthTex = texture(depthTexture, textureCoords);
+    float lum1 = (depthTex.r + depthTex.g + depthTex.b) / 3;
+    if(lum1 > 0.33){
+        out_Colour = colour;
+    }else{
+        out_Colour = sceneColour;
+    }
+
+}

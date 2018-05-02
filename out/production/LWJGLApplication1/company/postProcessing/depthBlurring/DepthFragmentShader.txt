@@ -1,0 +1,21 @@
+#version 150
+
+in vec2 textureCoords;
+
+out vec4 out_Colour;
+
+uniform sampler2D colourTexture;
+uniform sampler2D depthMapTexture;
+
+void main(void){
+
+    vec4 sceneColour = texture(colourTexture, textureCoords);
+    vec4 depthValue = texture(depthMapTexture, textureCoords);
+    float luminance = (depthValue.r + depthValue.g + depthValue.b) / 3;
+    if(luminance > 0.33){
+        out_Colour = sceneColour;
+    }else{
+        out_Colour = vec4(1.0);
+    }
+
+}

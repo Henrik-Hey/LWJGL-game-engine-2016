@@ -1,0 +1,87 @@
+#version 330
+
+in vec2 pass_textureCoords;
+in vec3 surfaceNormal;
+in vec3 toLightVector;
+in vec3 toCameraVector;
+in float visibility;
+in vec4 shadowCoords;
+
+layout (location = 0) out vec4 out_Colour;
+layout (location = 1) out vec4 out_BrightColour;
+layout (location = 2) out vec4 out_VelocityColour;
+
+uniform sampler2D backgroundTexture;
+uniform sampler2D rTexture;
+uniform sampler2D gTexture;
+uniform sampler2D bTexture;
+uniform sampler2D blendMap;
+uniform sampler2D shadowMap;
+
+uniform float isNonStatic;
+uniform vec3 lightColor;
+uniform float shineDamper;
+uniform float reflectivity;
+uniform vec3 skyColor;
+
+const int pcfCount = 2;
+const float texelCount = (pcfCount * 2.0 + 1) * (pcfCount * 2.0 + 1);
+
+void main(void){
+
+    float mapSize = 8096.0; //shadowMap size(should be uniform)
+    float texelSize = 1.0 / mapSize; //texture pixel size
+    float PIS = 0.0; //pixels in shadow(PIS)
+
+    for(int x =- pcfCount; x <= pcfCount; x++){
+        for(int y =- pcfCount; y <= pcfCount; y++){
+            float objectNearestToLight = texture(shadowMap, shadowCoords.xy + vec2(x,y) * texelSize).r;
+            if(shadowCoords.z > objectNearestToLight){
+                    PIS += 1.0;
+            }
+        }
+    }
+
+    PIS /= texelCount;
+
+    float lightFactor = 1.0 - (shadowCoords.w * PIS);
+
+    vec4 blendMapColor = texture2D(blendMap, pass_textureCoords);
+
+    float backTextureAmount = 1 - (blendMapColor.r + blendMapColor.g + blendMapColor.b);
+    vec2 tiledCoords = pass_textureCoords * 40;
+    vec4 backgroundTextureColor = texture2D(backgroundTexture, tiledCoords) * backTextureAmount;
+    vec4 rTextureColor = texture2D(rTexture, tiledCoords) * blendMapColor.r;
+    vec4 gTextureColor = texture2D(gTexture, tiledCoords) * blendMapColor.g;
+    vec4 bTextureColor = texture2D(bTexture, tiledCoords) * blendMapColor.b;
+
+    vec4 totalColor = backgroundTextureColor + rTextureColor + gTextureColor + bTextureColor;
+
+    vec3 unitNormal = normalize(surfaceNormal);
+
+    vec3 unitLightVector = normalize(toLightVector);
+    float nDot1 = dot(unitNormal, unitLightVector);
+    float brightness = max(nDot1, 0.2);
+    vec3 diffuse = vec3(0.0);
+    diffuse = (brightness * lightColor);
+    diffuse = max(diffuse * lightFactor, 0.2);
+
+    vec3 unitCameraVector = normalize(toCameraVector);
+    vec3 lightDirection = -unitLightVector;
+    vec3 reflectedLightDirection = reflect(lightDirection, unitNormal);
+
+    float specularFactor = dot(reflectedLightDirection, unitCameraVector);
+    specularFactor = max(specularFactor, 0.2);
+    float dampedFactor = pow(specularFactor, shineDamper);
+    vec3 finalSpecular = dampedFactor * lightColor;
+
+    out_Colour = vec4(diffuse, 0.5) * totalColor + vec4(finalSpecular, 0.0);
+    out_Colour = mix(vec4(skyColor, 0.0), out_Colour, visibility);
+    out_BrightColour = vec4(0.0);
+    if(isNonStatic > 0.5){
+        out_VelocityColour = vec4(1.0, 0.0, 0.0, 1.0);
+    }else{
+        out_VelocityColour = vec4(1.0, 1.0, 0.0, 1.0);
+    }
+
+}
